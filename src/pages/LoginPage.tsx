@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { setSession } from '@/lib/session'
 
 export function LoginPage() {
   const { setUser } = useAuth()
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -29,6 +31,7 @@ export function LoginPage() {
 
       setSession(data)
       setUser(data)
+      navigate('/', { replace: true })
     } catch {
       setError('Sin conexión. Verifique su internet.')
     } finally {
