@@ -1,16 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { ReceiptUpload } from '@/types/database'
+import type { ReceiptUpload, Category } from '@/types/database'
 import {
   getReceiptUploads,
   uploadReceiptFiles,
   analyzeReceiptUpload,
+  saveReceiptAsExpense,
   deleteReceiptUpload as deleteReceiptService,
 } from '@/services/receiptUploadService'
+import { checkDuplicateExpense } from '@/services/expensesService'
+import { todayString } from '@/utils/formatters'
 
 export interface UploadProgress {
   current: number
   total: number
-  phase: 'uploading' | 'analyzing'
+  phase: 'uploading' | 'analyzing' | 'saving'
 }
 
 export function useReceiptUploads() {
@@ -19,6 +22,7 @@ export function useReceiptUploads() {
   const [uploading, setUploading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzingId, setAnalyzingId] = useState<string | null>(null)
+  const [savingAll, setSavingAll] = useState(false)
   const [bulkProgress, setBulkProgress] = useState<UploadProgress | null>(null)
 
   const load = useCallback(async () => {
@@ -84,6 +88,62 @@ export function useReceiptUploads() {
     }
   }, [load])
 
+  // Guarda todas las boletas en estado 'review' usando los defaults del catálogo.
+  // Las que tienen posible duplicado se dejan en 'review' para revisión manual.
+  const saveAll = useCallback(async (opts: {
+    defaultResponsibleId: string
+    defaultPaymentMethodId: string
+    categories: Category[]
+  }): Promise<{ saved: number; skipped: number }> => {
+    const toSave = receipts.filter(r => r.status === 'review')
+    if (toSave.length === 0) return { saved: 0, skipped: 0 }
+
+    setSavingAll(true)
+    setBulkProgress({ current: 0, total: toSave.length, phase: 'saving' })
+    let saved = 0
+    let skipped = 0
+
+    try {
+      for (let i = 0; i < toSave.length; i++) {
+        const receipt = toSave[i]
+        setBulkProgress({ current: i + 1, total: toSave.length, phase: 'saving' })
+
+        const analysis = receipt.analysis_result
+        const amount = analysis?.total ?? 0
+        if (amount <= 0) { skipped++; continue }
+
+        const expenseDate = (analysis?.date && /^\d{4}-\d{2}-\d{2}$/.test(analysis.date))
+          ? analysis.date
+          : todayString()
+
+        const isDuplicate = await checkDuplicateExpense(expenseDate, amount)
+        if (isDuplicate) { skipped++; continue }
+
+        const suggested = analysis?.items?.[0]?.suggestedCategory
+        const category = suggested
+          ? opts.categories.find(c => c.name.toLowerCase() === suggested.toLowerCase())
+          : null
+
+        await saveReceiptAsExpense(receipt.id, receipt.storage_path, {
+          amount: Math.round(amount),
+          category_id: category?.id ?? null,
+          detail: analysis?.items?.map(i => i.name).join(', ') ?? '',
+          vendor: analysis?.vendor ?? '',
+          payment_method_id: opts.defaultPaymentMethodId || null,
+          responsible_id: opts.defaultResponsibleId || null,
+          expense_date: expenseDate,
+        })
+        saved++
+      }
+    } finally {
+      setSavingAll(false)
+      setBulkProgress(null)
+      await load()
+    }
+
+    return { saved, skipped }
+  }, [receipts, load])
+
   const analyzeOne = useCallback(async (receipt: ReceiptUpload) => {
     setAnalyzingId(receipt.id)
     setReceipts(prev =>
@@ -135,6 +195,7 @@ export function useReceiptUploads() {
     uploading,
     analyzing,
     analyzingId,
+    savingAll,
     bulkProgress,
     pendingCount,
     reviewCount,
@@ -143,6 +204,7 @@ export function useReceiptUploads() {
     load,
     uploadFiles,
     uploadAndAnalyzeAll,
+    saveAll,
     analyzeOne,
     analyzeAll,
     deleteReceipt,

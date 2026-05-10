@@ -187,6 +187,16 @@ export async function uploadReceipt(file: File): Promise<string> {
   return data.publicUrl
 }
 
+export async function checkDuplicateExpense(date: string, amount: number): Promise<boolean> {
+  const { data } = await supabase
+    .from('expenses')
+    .select('id')
+    .eq('expense_date', date)
+    .eq('amount', amount)
+    .limit(1)
+  return (data?.length ?? 0) > 0
+}
+
 export async function getMonthlySummary(year: number, month: number) {
   const expenses = await getExpensesByMonth(year, month)
 
