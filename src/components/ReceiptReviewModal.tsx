@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { X, CheckCircle, Trash2, AlertCircle, ReceiptText } from 'lucide-react'
+import { X, CheckCircle, Trash2, AlertCircle, ReceiptText, AlertTriangle } from 'lucide-react'
 import { useCatalog } from '@/hooks/useCatalog'
 import { useToastContext } from '@/contexts/ToastContext'
 import { saveReceiptAsExpense, deleteReceiptUpload, getReceiptPublicUrl } from '@/services/receiptUploadService'
+import { checkDuplicateExpense } from '@/services/expensesService'
 import { todayString } from '@/utils/formatters'
 import type { ReceiptUpload, ReceiptExpenseFormData } from '@/types/database'
 
@@ -35,6 +36,7 @@ export function ReceiptReviewModal({ receipt, onClose, onSaved, onDeleted }: Rec
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [dupWarning, setDupWarning] = useState(false)
 
   // Auto-select defaults and suggested category
   useEffect(() => {
@@ -59,11 +61,20 @@ export function ReceiptReviewModal({ receipt, onClose, onSaved, onDeleted }: Rec
     }
   }, [expenseDate])
 
-  async function handleSave() {
+  async function handleSave(force = false) {
     if (!amount || amount <= 0) {
       showError('Ingresa un monto válido')
       return
     }
+    if (!force) {
+      const date = expenseDate || todayString()
+      const isDup = await checkDuplicateExpense(date, Math.round(amount))
+      if (isDup) {
+        setDupWarning(true)
+        return
+      }
+    }
+    setDupWarning(false)
     setSaving(true)
     try {
       const formData: ReceiptExpenseFormData = {
@@ -271,14 +282,43 @@ export function ReceiptReviewModal({ receipt, onClose, onSaved, onDeleted }: Rec
 
       {/* Botones fijos en el fondo */}
       <div className="bg-white border-t border-gray-200 p-4 space-y-3 pb-safe-bottom">
-        <button
-          onClick={handleSave}
-          disabled={saving || deleting}
-          className="w-full flex items-center justify-center gap-3 py-5 rounded-2xl bg-primary text-white font-bold text-xl shadow-md active:scale-95 transition-transform disabled:opacity-60"
-        >
-          <CheckCircle className="w-7 h-7" />
-          {saving ? 'Guardando gasto...' : 'Guardar Gasto'}
-        </button>
+        {dupWarning ? (
+          <div className="bg-amber-50 border-2 border-amber-400 rounded-2xl p-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-base font-bold text-amber-900">Posible gasto duplicado</p>
+                <p className="text-sm text-amber-800 mt-0.5">
+                  Ya existe un gasto de {formatAmount(amount)} el {expenseDate}. ¿Desea guardar de todas formas?
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDupWarning(false)}
+                className="flex-1 py-3 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold text-base"
+              >
+                Revisar
+              </button>
+              <button
+                onClick={() => handleSave(true)}
+                disabled={saving}
+                className="flex-1 py-3 rounded-xl bg-amber-500 text-white font-bold text-base disabled:opacity-60"
+              >
+                {saving ? 'Guardando...' : 'Guardar igual'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => handleSave()}
+            disabled={saving || deleting}
+            className="w-full flex items-center justify-center gap-3 py-5 rounded-2xl bg-primary text-white font-bold text-xl shadow-md active:scale-95 transition-transform disabled:opacity-60"
+          >
+            <CheckCircle className="w-7 h-7" />
+            {saving ? 'Guardando gasto...' : 'Guardar Gasto'}
+          </button>
+        )}
 
         {!confirmDelete ? (
           <button

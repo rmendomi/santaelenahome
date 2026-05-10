@@ -9,11 +9,15 @@ import {
   ReceiptText,
   ChevronDown,
   ChevronUp,
+  Edit3,
+  Save,
 } from 'lucide-react'
 import { useReceiptUploads } from '@/hooks/useReceiptUploads'
+import { useCatalog } from '@/hooks/useCatalog'
 import { ReceiptReviewModal } from '@/components/ReceiptReviewModal'
 import { getReceiptPublicUrl, retryReceiptAnalysis } from '@/services/receiptUploadService'
 import { useToastContext } from '@/contexts/ToastContext'
+import { formatDateShort } from '@/utils/formatters'
 import type { ReceiptUpload } from '@/types/database'
 
 const STATUS_LABEL: Record<string, { label: string; color: string; bg: string }> = {
@@ -103,6 +107,11 @@ function ReceiptCard({
           {receipt.analysis_result?.vendor && (
             <p className="text-sm text-gray-600 truncate">{receipt.analysis_result.vendor}</p>
           )}
+          {receipt.analysis_result?.date && (
+            <p className="text-sm text-gray-500">
+              📅 {formatDateShort(receipt.analysis_result.date)}
+            </p>
+          )}
 
           {/* Error */}
           {receipt.status === 'failed' && receipt.error_message && (
@@ -126,8 +135,8 @@ function ReceiptCard({
               onClick={() => onReview(receipt)}
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-white font-bold text-base"
             >
-              <Check className="w-5 h-5" />
-              Revisar y guardar
+              <Edit3 className="w-5 h-5" />
+              Revisar
             </button>
           )}
           {receipt.status === 'failed' && (
@@ -166,10 +175,11 @@ function ReceiptCard({
 
 export function BoletasPage() {
   const {
-    receipts, loading, uploading, analyzing, analyzingId, bulkProgress,
+    receipts, loading, uploading, analyzing, analyzingId, savingAll, bulkProgress,
     pendingCount, reviewCount, savedCount,
-    uploadAndAnalyzeAll, analyzeAll, analyzeOne, deleteReceipt, load,
+    uploadAndAnalyzeAll, saveAll, analyzeAll, analyzeOne, deleteReceipt, load,
   } = useReceiptUploads()
+  const { categories, defaultResponsibleId, defaultPaymentMethodId } = useCatalog()
   const { showSuccess, showError } = useToastContext()
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -211,6 +221,23 @@ export function BoletasPage() {
       await analyzeOne(receipt)
     } catch {
       showError('No se pudo reintentar el análisis.')
+    }
+  }
+
+  async function handleSaveAll() {
+    try {
+      const { saved, skipped } = await saveAll({
+        defaultResponsibleId,
+        defaultPaymentMethodId,
+        categories,
+      })
+      if (skipped > 0) {
+        showSuccess(`${saved} guardada${saved !== 1 ? 's' : ''}. ${skipped} posible${skipped !== 1 ? 's' : ''} duplicado${skipped !== 1 ? 's' : ''} — revíselo${skipped !== 1 ? 's' : ''} manualmente.`)
+      } else {
+        showSuccess(`${saved} gasto${saved !== 1 ? 's' : ''} guardado${saved !== 1 ? 's' : ''} correctamente`)
+      }
+    } catch {
+      showError('Error al guardar. Intente de nuevo.')
     }
   }
 
@@ -365,12 +392,34 @@ export function BoletasPage() {
         {/* Boletas para revisar - PRIORIDAD MÁXIMA */}
         {reviewReceipts.length > 0 && (
           <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-3 h-3 rounded-full bg-emerald-500" />
-              <h2 className="text-lg font-bold text-gray-900">
-                Listas para revisar ({reviewReceipts.length})
-              </h2>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                <h2 className="text-lg font-bold text-gray-900">
+                  Listas para revisar ({reviewReceipts.length})
+                </h2>
+              </div>
             </div>
+
+            {/* Botón Guardar todo */}
+            <button
+              onClick={handleSaveAll}
+              disabled={savingAll || analyzing}
+              className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl bg-emerald-600 text-white font-bold text-lg shadow-md active:scale-95 transition-transform disabled:opacity-60 mb-3"
+            >
+              {savingAll && bulkProgress?.phase === 'saving' ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Guardando {bulkProgress.current} de {bulkProgress.total}...
+                </>
+              ) : (
+                <>
+                  <Save className="w-6 h-6" />
+                  Guardar todo ({reviewReceipts.length})
+                </>
+              )}
+            </button>
+
             <div className="space-y-3">
               {reviewReceipts.map(r => (
                 <ReceiptCard
