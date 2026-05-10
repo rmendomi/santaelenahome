@@ -11,6 +11,7 @@ import {
   ChevronUp,
   Edit3,
   Save,
+  AlertTriangle,
 } from 'lucide-react'
 import { useReceiptUploads } from '@/hooks/useReceiptUploads'
 import { useCatalog } from '@/hooks/useCatalog'
@@ -42,6 +43,8 @@ function ReceiptCard({
   onReview,
   onDelete,
   onRetry,
+  onForceSave,
+  isDuplicate,
   isDeleting,
   analyzingId,
 }: {
@@ -49,6 +52,8 @@ function ReceiptCard({
   onReview: (r: ReceiptUpload) => void
   onDelete: (r: ReceiptUpload) => void
   onRetry: (r: ReceiptUpload) => void
+  onForceSave: (r: ReceiptUpload) => void
+  isDuplicate: boolean
   isDeleting: boolean
   analyzingId: string | null
 }) {
@@ -58,7 +63,9 @@ function ReceiptCard({
 
   return (
     <div className={`bg-white rounded-2xl border-2 overflow-hidden shadow-sm ${
-      isSaved ? 'border-gray-200 opacity-75' : 'border-gray-200'
+      isSaved ? 'border-gray-200 opacity-75' :
+      isDuplicate ? 'border-amber-400' :
+      'border-gray-200'
     }`}>
       <div className="flex gap-3 p-3">
         {/* Miniatura */}
@@ -97,6 +104,12 @@ function ReceiptCard({
           </div>
 
           <StatusBadge status={receipt.status} />
+          {isDuplicate && (
+            <div className="flex items-center gap-1.5 mt-1.5 bg-amber-50 rounded-lg px-2 py-1.5 border border-amber-200">
+              <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+              <p className="text-sm text-amber-800 font-semibold">Posible duplicado</p>
+            </div>
+          )}
 
           {/* Datos detectados */}
           {receipt.analysis_result?.total && (
@@ -130,7 +143,7 @@ function ReceiptCard({
       {/* Action buttons */}
       {!isSaved && (
         <div className="border-t border-gray-100 px-3 py-2.5 flex gap-2">
-          {receipt.status === 'review' && (
+          {receipt.status === 'review' && !isDuplicate && (
             <button
               onClick={() => onReview(receipt)}
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-white font-bold text-base"
@@ -138,6 +151,24 @@ function ReceiptCard({
               <Edit3 className="w-5 h-5" />
               Revisar
             </button>
+          )}
+          {receipt.status === 'review' && isDuplicate && (
+            <>
+              <button
+                onClick={() => onForceSave(receipt)}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-amber-500 text-white font-bold text-base"
+              >
+                <Check className="w-5 h-5" />
+                Guardar igual
+              </button>
+              <button
+                onClick={() => onReview(receipt)}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold text-base"
+              >
+                <Edit3 className="w-5 h-5" />
+                Revisar
+              </button>
+            </>
           )}
           {receipt.status === 'failed' && (
             <button
@@ -176,8 +207,9 @@ function ReceiptCard({
 export function BoletasPage() {
   const {
     receipts, loading, uploading, analyzing, analyzingId, savingAll, bulkProgress,
+    duplicateIds,
     pendingCount, reviewCount, savedCount,
-    uploadAndAnalyzeAll, saveAll, analyzeAll, analyzeOne, deleteReceipt, load,
+    uploadAndAnalyzeAll, saveAll, forceSaveOne, analyzeAll, analyzeOne, deleteReceipt, load,
   } = useReceiptUploads()
   const { categories, defaultResponsibleId, defaultPaymentMethodId } = useCatalog()
   const { showSuccess, showError } = useToastContext()
@@ -238,6 +270,15 @@ export function BoletasPage() {
       }
     } catch {
       showError('Error al guardar. Intente de nuevo.')
+    }
+  }
+
+  async function handleForceSave(receipt: ReceiptUpload) {
+    try {
+      await forceSaveOne(receipt, { defaultResponsibleId, defaultPaymentMethodId, categories })
+      showSuccess('Gasto guardado correctamente')
+    } catch {
+      showError('No se pudo guardar. Intente de nuevo.')
     }
   }
 
@@ -428,6 +469,8 @@ export function BoletasPage() {
                   onReview={setReviewingReceipt}
                   onDelete={handleDelete}
                   onRetry={handleRetry}
+                  onForceSave={handleForceSave}
+                  isDuplicate={duplicateIds.has(r.id)}
                   isDeleting={deletingId === r.id}
                   analyzingId={analyzingId}
                 />
@@ -453,6 +496,8 @@ export function BoletasPage() {
                   onReview={setReviewingReceipt}
                   onDelete={handleDelete}
                   onRetry={handleRetry}
+                  onForceSave={handleForceSave}
+                  isDuplicate={false}
                   isDeleting={deletingId === r.id}
                   analyzingId={analyzingId}
                 />
@@ -489,6 +534,8 @@ export function BoletasPage() {
                     onReview={setReviewingReceipt}
                     onDelete={handleDelete}
                     onRetry={handleRetry}
+                    onForceSave={handleForceSave}
+                    isDuplicate={false}
                     isDeleting={deletingId === r.id}
                     analyzingId={analyzingId}
                   />

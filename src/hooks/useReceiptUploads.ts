@@ -24,6 +24,7 @@ export function useReceiptUploads() {
   const [analyzingId, setAnalyzingId] = useState<string | null>(null)
   const [savingAll, setSavingAll] = useState(false)
   const [bulkProgress, setBulkProgress] = useState<UploadProgress | null>(null)
+  const [duplicateIds, setDuplicateIds] = useState<Set<string>>(new Set())
 
   const load = useCallback(async () => {
     try {
@@ -102,6 +103,7 @@ export function useReceiptUploads() {
     setBulkProgress({ current: 0, total: toSave.length, phase: 'saving' })
     let saved = 0
     let skipped = 0
+    const newDuplicateIds = new Set<string>()
 
     try {
       for (let i = 0; i < toSave.length; i++) {
@@ -117,7 +119,7 @@ export function useReceiptUploads() {
           : todayString()
 
         const isDuplicate = await checkDuplicateExpense(expenseDate, amount)
-        if (isDuplicate) { skipped++; continue }
+        if (isDuplicate) { skipped++; newDuplicateIds.add(receipt.id); continue }
 
         const suggested = analysis?.items?.[0]?.suggestedCategory
         const category = suggested
@@ -138,11 +140,47 @@ export function useReceiptUploads() {
     } finally {
       setSavingAll(false)
       setBulkProgress(null)
+      setDuplicateIds(newDuplicateIds)
       await load()
     }
 
     return { saved, skipped }
   }, [receipts, load])
+
+  const forceSaveOne = useCallback(async (
+    receipt: ReceiptUpload,
+    opts: { defaultResponsibleId: string; defaultPaymentMethodId: string; categories: Category[] }
+  ): Promise<void> => {
+    const analysis = receipt.analysis_result
+    const amount = analysis?.total ?? 0
+    if (amount <= 0) throw new Error('Monto inválido')
+
+    const expenseDate = (analysis?.date && /^\d{4}-\d{2}-\d{2}$/.test(analysis.date))
+      ? analysis.date
+      : todayString()
+
+    const suggested = analysis?.items?.[0]?.suggestedCategory
+    const category = suggested
+      ? opts.categories.find(c => c.name.toLowerCase() === suggested.toLowerCase())
+      : null
+
+    await saveReceiptAsExpense(receipt.id, receipt.storage_path, {
+      amount: Math.round(amount),
+      category_id: category?.id ?? null,
+      detail: analysis?.items?.map(i => i.name).join(', ') ?? '',
+      vendor: analysis?.vendor ?? '',
+      payment_method_id: opts.defaultPaymentMethodId || null,
+      responsible_id: opts.defaultResponsibleId || null,
+      expense_date: expenseDate,
+    })
+
+    setDuplicateIds(prev => {
+      const next = new Set(prev)
+      next.delete(receipt.id)
+      return next
+    })
+    await load()
+  }, [load])
 
   const analyzeOne = useCallback(async (receipt: ReceiptUpload) => {
     setAnalyzingId(receipt.id)
@@ -197,6 +235,7 @@ export function useReceiptUploads() {
     analyzingId,
     savingAll,
     bulkProgress,
+    duplicateIds,
     pendingCount,
     reviewCount,
     savedCount,
@@ -205,6 +244,7 @@ export function useReceiptUploads() {
     uploadFiles,
     uploadAndAnalyzeAll,
     saveAll,
+    forceSaveOne,
     analyzeOne,
     analyzeAll,
     deleteReceipt,
