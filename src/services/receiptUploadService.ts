@@ -5,13 +5,18 @@ import type { ReceiptUpload, ReceiptAnalysisResult, ReceiptExpenseFormData } fro
 const BUCKET = 'receipts'
 const INBOX_FOLDER = 'inbox'
 
-export async function uploadReceiptFiles(files: File[]): Promise<ReceiptUpload[]> {
+export async function uploadReceiptFiles(
+  files: File[],
+  onProgress?: (current: number, total: number) => void
+): Promise<ReceiptUpload[]> {
   const user = getSession()
   if (!user) throw new Error('No autenticado')
 
   const results: ReceiptUpload[] = []
 
-  for (const file of files) {
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]
+    onProgress?.(i + 1, files.length)
     const ext = file.name.split('.').pop() ?? 'jpg'
     const storagePath = `${INBOX_FOLDER}/${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
 
