@@ -38,7 +38,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       if (!data || data.length === 0) return 'No hay gastos registrados hoy.'
       const total = data.reduce((s, e) => s + e.amount, 0)
       const lines = data.map((e) => {
-        const cat = (e as { categories?: { name: string } }).categories?.name ?? 'Sin categoría'
+        const cat = (e as unknown as { categories?: { name: string } }).categories?.name ?? 'Sin categoría'
         const label = e.vendor ?? e.detail ?? cat
         return `- ${label}: ${formatCLP(e.amount)}`
       })
@@ -76,7 +76,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
 
       const byCategory: Record<string, number> = {}
       for (const e of data) {
-        const cat = (e as { categories?: { name: string } }).categories?.name ?? 'Sin categoría'
+        const cat = (e as unknown as { categories?: { name: string } }).categories?.name ?? 'Sin categoría'
         byCategory[cat] = (byCategory[cat] ?? 0) + e.amount
       }
 
@@ -105,7 +105,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
 
       const byResp: Record<string, number> = {}
       for (const e of data) {
-        const resp = (e as { responsibles?: { name: string } }).responsibles?.name ?? 'Sin responsable'
+        const resp = (e as unknown as { responsibles?: { name: string } }).responsibles?.name ?? 'Sin responsable'
         byResp[resp] = (byResp[resp] ?? 0) + e.amount
       }
 
@@ -132,8 +132,8 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       const byResp: Record<string, number> = {}
 
       for (const e of data) {
-        const cat = (e as { categories?: { name: string } }).categories?.name ?? 'Sin categoría'
-        const resp = (e as { responsibles?: { name: string } }).responsibles?.name ?? 'Sin responsable'
+        const cat = (e as unknown as { categories?: { name: string } }).categories?.name ?? 'Sin categoría'
+        const resp = (e as unknown as { responsibles?: { name: string } }).responsibles?.name ?? 'Sin responsable'
         byCategory[cat] = (byCategory[cat] ?? 0) + e.amount
         byResp[resp] = (byResp[resp] ?? 0) + e.amount
       }
@@ -159,7 +159,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       if (!data || data.length === 0) return 'Sin gastos en el período.'
 
       const lines = data.map((e) => {
-        const label = e.vendor ?? e.detail ?? (e as { categories?: { name: string } }).categories?.name ?? 'Gasto'
+        const label = e.vendor ?? e.detail ?? (e as unknown as { categories?: { name: string } }).categories?.name ?? 'Gasto'
         return `- ${e.expense_date}: ${label} — ${formatCLP(e.amount)}`
       })
 
