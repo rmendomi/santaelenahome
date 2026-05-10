@@ -5,6 +5,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { AppShell } from '@/components/AppShell'
 import { LoginPage } from '@/pages/LoginPage'
 import { TodayPage } from '@/pages/TodayPage'
+import { BoletasPage } from '@/pages/BoletasPage'
 import { HistoryPage } from '@/pages/HistoryPage'
 import { SummaryPage } from '@/pages/SummaryPage'
 import { SettingsPage } from '@/pages/SettingsPage'
@@ -19,6 +20,7 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<AppShell />}>
                 <Route index element={<TodayPage />} />
+                <Route path="boletas" element={<BoletasPage />} />
                 <Route path="historial" element={<HistoryPage />} />
                 <Route path="resumen" element={<SummaryPage />} />
                 <Route path="ajustes" element={<SettingsPage />} />
