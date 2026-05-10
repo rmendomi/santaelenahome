@@ -166,9 +166,9 @@ function ReceiptCard({
 
 export function BoletasPage() {
   const {
-    receipts, loading, uploading, analyzing, analyzingId,
+    receipts, loading, uploading, analyzing, analyzingId, bulkProgress,
     pendingCount, reviewCount, savedCount,
-    uploadFiles, analyzeAll, analyzeOne, deleteReceipt, load,
+    uploadAndAnalyzeAll, analyzeAll, analyzeOne, deleteReceipt, load,
   } = useReceiptUploads()
   const { showSuccess, showError } = useToastContext()
 
@@ -186,10 +186,10 @@ export function BoletasPage() {
     if (files.length === 0) return
     e.target.value = ''
     try {
-      await uploadFiles(files)
-      showSuccess(`${files.length} foto${files.length > 1 ? 's' : ''} subida${files.length > 1 ? 's' : ''} correctamente`)
+      await uploadAndAnalyzeAll(files)
+      showSuccess(`${files.length} boleta${files.length > 1 ? 's' : ''} procesada${files.length > 1 ? 's' : ''} correctamente`)
     } catch {
-      showError('Error al subir las fotos. Intente de nuevo.')
+      showError('Error al procesar las fotos. Intente de nuevo.')
     }
   }
 
@@ -268,14 +268,38 @@ export function BoletasPage() {
         <div>
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
+            disabled={uploading || analyzing}
             className="w-full flex flex-col items-center justify-center gap-3 py-8 rounded-2xl bg-white border-3 border-dashed border-primary text-primary font-bold shadow-sm active:scale-95 transition-transform disabled:opacity-60"
             style={{ borderWidth: '3px', borderStyle: 'dashed' }}
           >
-            {uploading ? (
+            {bulkProgress ? (
               <>
                 <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                <span className="text-xl">Subiendo fotos...</span>
+                {bulkProgress.phase === 'uploading' ? (
+                  <>
+                    <span className="text-xl">
+                      Subiendo {bulkProgress.current} de {bulkProgress.total} fotos...
+                    </span>
+                    <div className="w-full max-w-xs bg-primary-100 rounded-full h-2.5">
+                      <div
+                        className="bg-primary h-2.5 rounded-full transition-all duration-300"
+                        style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xl">
+                      Analizando {bulkProgress.current} de {bulkProgress.total} boletas...
+                    </span>
+                    <div className="w-full max-w-xs bg-amber-100 rounded-full h-2.5">
+                      <div
+                        className="bg-amber-500 h-2.5 rounded-full transition-all duration-300"
+                        style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
+                      />
+                    </div>
+                  </>
+                )}
               </>
             ) : (
               <>
@@ -284,7 +308,7 @@ export function BoletasPage() {
                 </div>
                 <span className="text-xl">Subir Fotos de Boletas</span>
                 <span className="text-sm font-normal text-primary-600">
-                  Puede seleccionar varias fotos a la vez
+                  Seleccione varias fotos a la vez — se analizan solas
                 </span>
               </>
             )}

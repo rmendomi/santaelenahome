@@ -7,12 +7,19 @@ import {
   deleteReceiptUpload as deleteReceiptService,
 } from '@/services/receiptUploadService'
 
+export interface UploadProgress {
+  current: number
+  total: number
+  phase: 'uploading' | 'analyzing'
+}
+
 export function useReceiptUploads() {
   const [receipts, setReceipts] = useState<ReceiptUpload[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzingId, setAnalyzingId] = useState<string | null>(null)
+  const [bulkProgress, setBulkProgress] = useState<UploadProgress | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -34,6 +41,46 @@ export function useReceiptUploads() {
       await load()
     } finally {
       setUploading(false)
+    }
+  }, [load])
+
+  // Sube Y analiza todas en secuencia, mostrando progreso
+  const uploadAndAnalyzeAll = useCallback(async (files: File[]) => {
+    setUploading(true)
+    setBulkProgress({ current: 0, total: files.length, phase: 'uploading' })
+    let uploaded: ReceiptUpload[] = []
+    try {
+      uploaded = await uploadReceiptFiles(files, (current, total) => {
+        setBulkProgress({ current, total, phase: 'uploading' })
+      })
+      await load()
+    } finally {
+      setUploading(false)
+    }
+
+    if (uploaded.length === 0) {
+      setBulkProgress(null)
+      return
+    }
+
+    setAnalyzing(true)
+    try {
+      for (let i = 0; i < uploaded.length; i++) {
+        const receipt = uploaded[i]
+        setBulkProgress({ current: i + 1, total: uploaded.length, phase: 'analyzing' })
+        setAnalyzingId(receipt.id)
+        setReceipts(prev =>
+          prev.map(r => r.id === receipt.id ? { ...r, status: 'analyzing' as const } : r)
+        )
+        await analyzeReceiptUpload(receipt.id, receipt.storage_path, receipt.mime_type)
+        const updated = await getReceiptUploads()
+        setReceipts(updated)
+      }
+    } finally {
+      setAnalyzing(false)
+      setAnalyzingId(null)
+      setBulkProgress(null)
+      await load()
     }
   }, [load])
 
@@ -88,12 +135,14 @@ export function useReceiptUploads() {
     uploading,
     analyzing,
     analyzingId,
+    bulkProgress,
     pendingCount,
     reviewCount,
     savedCount,
     analyzingCount,
     load,
     uploadFiles,
+    uploadAndAnalyzeAll,
     analyzeOne,
     analyzeAll,
     deleteReceipt,
