@@ -127,3 +127,43 @@ export interface ExpenseFilters {
   payment_method_id?: string
   search?: string
 }
+
+export type ReceiptUploadStatus = 'uploaded' | 'analyzing' | 'review' | 'saved' | 'failed'
+
+export interface ReceiptAnalysisItem {
+  name: string
+  amount: number
+  suggestedCategory?: string
+}
+
+export interface ReceiptAnalysisResult {
+  vendor?: string | null
+  date?: string | null
+  total?: number | null
+  items?: ReceiptAnalysisItem[]
+}
+
+export interface ReceiptUpload {
+  id: string
+  user_id: string | null
+  storage_path: string
+  original_filename: string | null
+  mime_type: string | null
+  status: ReceiptUploadStatus
+  analysis_result: ReceiptAnalysisResult | null
+  expense_id: string | null
+  error_message: string | null
+  created_at: string
+  analyzed_at: string | null
+  saved_at: string | null
+}
+
+export interface ReceiptExpenseFormData {
+  amount: number
+  category_id: string | null
+  detail: string
+  vendor: string
+  payment_method_id: string | null
+  responsible_id: string | null
+  expense_date: string
+}

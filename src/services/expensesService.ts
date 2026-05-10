@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getSession } from '@/lib/session'
 import type {
   Expense,
   ExpenseWithRelations,
@@ -70,7 +71,7 @@ export async function getExpenseById(id: string): Promise<ExpenseWithRelations |
 }
 
 export async function createExpense(formData: QuickExpenseFormData): Promise<Expense> {
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = getSession()
 
   let receipt_url: string | null = null
   if (formData.receipt_file) {
@@ -100,7 +101,7 @@ export async function createExpense(formData: QuickExpenseFormData): Promise<Exp
 export async function createGroupedExpense(
   formData: GroupedExpenseFormData
 ): Promise<Expense> {
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = getSession()
 
   const total = formData.items.reduce((sum, item) => sum + item.amount, 0)
 
